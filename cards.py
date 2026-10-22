@@ -47,8 +47,14 @@ for i in range(0, len(currentDeck), NoOfCardsAtATime):
 
 
 def bidding():
-    MAX_BID = noOfPlayers
-    currentBidStarter = 1
+    # Sending things as a list so the original value changes..
+    def playerCountAndConditionalValidityFn(playersTeamBidded, index1, validityBool, index2):
+        if (playersTeamBidded[index1] < maxPlayersPerTeam):
+            playersTeamBidded[index1] += 1
+        else:
+            validityBool[index2] = False
+
+    currentBidStarter = 2
     teamToBid = None # 0 for team 1, 1 for team 2
     playersTeamBidded = [0, 0]
 
@@ -59,88 +65,70 @@ def bidding():
         teamToBidStarter = 1
         teamToBid = 1
 
-    highestBid = maxPoints / 2 - 1 # Start just before actual highest bid (14, 28, 42) -> (13, 27, 41)
+    highestBid = maxPoints // 2 - 1 # Start just before actual highest bid (14, 28, 42) -> (13, 27, 41)
     highestBidTeam = 0
     bidPlayer = currentBidStarter
-    maxPlayersPerTeam = noOfPlayers / 2 - 1
-    whileValidity = True
+    maxPlayersPerTeam = noOfPlayers // 2 - 1
+    whileValidity = [True] # List for mutation by playerCountAndConditionalValidityFn()
     ifValidity = [True, True]
+    def notPassing(bid):
+        nonlocal bidPlayer, highestBid, highestBidTeam, teamToBid, teamToBidStarter
 
-    while whileValidity:
+        try:
+            bid = int(bid)
+        except ValueError:
+            print("Input shouldn't contain characters")
+            return
+
+        if (bid > highestBid and bid < maxPoints + 1):
+            highestBid = bid
+            if (bid + 1 > maxPoints):
+                return
+
+            otherTeamToBid = 1 - teamToBid
+            highestBidTeam = teamToBid
+            if (ifValidity[otherTeamToBid]):
+                if teamToBidStarter == teamToBid:
+                    bidPlayer = currentBidStarter + playersTeamBidded[otherTeamToBid] * 2 + 1
+                else:
+                    bidPlayer = currentBidStarter + playersTeamBidded[otherTeamToBid] * 2
+
+                playerCountAndConditionalValidityFn(playersTeamBidded, teamToBid, ifValidity, teamToBid)
+            else:
+                whileValidity[0] = False
+
+            if (not any(ifValidity)):
+                whileValidity[0] = False
+
+            if teamToBid == 0:
+                teamToBid = 1
+            else:
+                teamToBid = 0
+        else:
+            print("Invalid bid")
+
+    bid = input(f"Bid, the lowest you can bid is {maxPoints // 2} (Player {bidPlayer}): ").lower()
+    notPassing(bid)
+
+    while whileValidity[0]:
         bid = input(f"Pass or Make a bid higher (Player {bidPlayer}): ").lower() # No concept as 0th player in game.
         if (bid == "pass"):
-            if (teamToBid == 0):
-                if (playersTeamBidded[0] < maxPlayersPerTeam):
-                    playersTeamBidded[0] += 1
-                else:
-                    whileValidity = False
-            else:
-                if (playersTeamBidded[1] < maxPlayersPerTeam):
-                    playersTeamBidded[1] += 1
-                else:
-                    whileValidity = False
+            playerCountAndConditionalValidityFn(playersTeamBidded, teamToBid, whileValidity, 0)
 
             bidPlayer += 2
-            # I used pass statement to allow me to use the variable noOfPlayers directly, otherwise it would have to be, if (bidPlayer > noOfPlayers - 1)
-            if (bidPlayer < noOfPlayers): 
-                pass
-            else:
-                bidPlayer = bidPlayer % noOfPlayers # Let it build up till player 6 (so bidPlayer = 5), then round to player 1 (bidPlayer = 0)
         else:
-            bid = int(bid)
-
-            if (bid > highestBid and bid < 57):
-                highestBid = bid
-                if (bid + 1 > 56):
-                    whileValidity = False
-                if (teamToBid == 0):
-                    highestBidTeam = 0
-                    if (ifValidity[1]):
-                        if teamToBidStarter == 0:
-                            bidPlayer = currentBidStarter + playersTeamBidded[1] * 2 + 1
-                        else:
-                            bidPlayer = currentBidStarter + playersTeamBidded[1] * 2
-
-                        if (playersTeamBidded[0] < maxPlayersPerTeam and ifValidity[0]):
-                            playersTeamBidded[0] += 1
-                        else:
-                            ifValidity[0] = False
-                    else:
-                        whileValidity = False
-                else:
-                    highestBidTeam = 1
-                    if (ifValidity[0]):
-                        if teamToBidStarter == 0:
-                            bidPlayer = currentBidStarter + playersTeamBidded[0] * 2
-                        else:
-                            bidPlayer = currentBidStarter + playersTeamBidded[0] * 2 + 1
-
-                        if (playersTeamBidded[1] < maxPlayersPerTeam and ifValidity[1]):
-                            playersTeamBidded[1] += 1
-                        else:
-                            ifValidity[1] = False
-                    else:
-                        whileValidity = False
-
-                if (ifValidity[0] == False and ifValidity[1] == False):
-                    whileValidity = False
-
-                if teamToBid == 0:
-                    teamToBid = 1
-                else:
-                    teamToBid = 0
-
-                if (bidPlayer < noOfPlayers): 
-                    pass
-                else:
-                    bidPlayer = bidPlayer % noOfPlayers
-            else:
-                print("Invalid bid")
+            notPassing(bid)
+        # I used pass statement to allow me to use the variable noOfPlayers directly, otherwise it would have to be, if (bidPlayer > noOfPlayers - 1)
+        if (bidPlayer < noOfPlayers): 
+            pass
+        else:
+            bidPlayer = bidPlayer % noOfPlayers # Let it build up till player 6 (so bidPlayer = 5), then round to player 1 (bidPlayer = 0)
 
     print("The highest bid is", highestBid, "by team", highestBidTeam)
+    return [highestBid, highestBidTeam]
 
-bidding()    
-# Force first player to bid, implement honers, fix weird letting 3rd player bid again before exiting
+bidding()
+#implement honers, max bid doesnt end the game
 while False:
     firstSuit = True
 
