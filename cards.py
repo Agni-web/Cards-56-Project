@@ -32,12 +32,13 @@ def honoursFn(bid):
 
     value = bidMapping.get(bid)
     if value is not None:
-        return bidMapping[bid]
+        key = next(key for key, value in bidMapping.items() if value == bidMapping[bid])
+        return bidMapping[bid], key
     else:
-        return None
+        return None, None
 
 def soloContractorFn(bid):
-    pass
+    return 56
 
 
 for number in numbers:
@@ -124,24 +125,34 @@ def bidding():
         returnValue = None
 
         if (re.fullmatch(r"honours( \d+)?", bid)):
-            bid = honoursFn(bid)
+            bid, key = honoursFn(bid)
             if bid is None:
                 print("Invalid honours call")
                 returnValue = False
             else:
+                bidText = "Honours have been called, call higher? (Honours 1, honours 2, etc.) (Player {}): "
+                specialModeBools["honours"] = True
                 returnValue = notPassing(bid)
+                # This would be true if it was a successful higher honers call
+                if returnValue:
+                    highestSpecialMode["honours"] = key
             return returnValue
+        
         elif (bid == "solo"):
             bid = soloContractorFn(bid)
-            if bid is None:
-                print("Invalid solo contractor call")
-                returnValue = False
-            else:
-                returnValue = notPassing(bid)
-            return returnValue
-        else:
+            specialModeBools["solo"] = True
+            highestSpecialMode["solo"] = bidPlayer
             returnValue = notPassing(bid)
             return returnValue
+        
+        elif not any(specialModeBools.values()):
+            returnValue = notPassing(bid)
+            return returnValue
+        
+        else:
+            # After honours is called, players should only be able to call higher honours, not raw numbers like 49, so deliberately passing 0.
+            returnValue = notPassing(0)
+            print("You are only allowed to perform higher honours calls")
         
     currentBidStarter = 2
     teamToBid = None # 0 for team 1, 1 for team 2
@@ -155,11 +166,20 @@ def bidding():
         teamToBid = 1
 
     highestBid = maxPoints // 2 - 1 # Start just before actual highest bid (14, 28, 42) -> (13, 27, 41)
+    highestSpecialMode = {
+        "honours": None,
+        "solo": None
+    }
     highestBidTeam = 0
     bidPlayer = currentBidStarter
     maxPlayersPerTeam = noOfPlayers // 2 - 1
     whileValidity = [True] # List for mutation by playerCountAndConditionalValidityFn()
     ifValidity = [True, True]
+    specialModeBools = {
+        "honours": False,
+        "solo": False
+    }
+
     bidText = "Pass or Make a bid higher (Player {}): "
 
     # Without this, the first player can mess up a bad special bid call, and then be able to pass the game
@@ -185,10 +205,18 @@ def bidding():
         if not (bidPlayer < noOfPlayers): 
             bidPlayer = bidPlayer % noOfPlayers # Let it build up till player 6 (so bidPlayer = 5), then round to player 1 (bidPlayer = 0)
 
-    print("The highest bid is", highestBid, "by team", highestBidTeam)
-    return [highestBid, highestBidTeam]
-
+    if (specialModeBools["solo"]):
+        print("Player", highestSpecialMode["solo"], "has chosen SOLO CONTRACTOR mode")
+        return [highestBid, bidPlayer]
+    elif (specialModeBools["honours"]):
+        print("Team", highestBidTeam, "has called", highestSpecialMode["honours"])
+        return [highestBid, bidPlayer]
+    else:
+        print("The highest bid is", highestBid, "by team", highestBidTeam)
+        return [highestBid, bidPlayer]
+    
 bidding()
+# Testing my implementation of the below
 #implement solo contractor, change the bid text after an honours, prevent ppl from simply betting the points higher, and actually using the honours 1 system
 while False:
     firstSuit = True
