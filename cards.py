@@ -1,12 +1,14 @@
 import random, re
 deck = {"8": 0, "9": 2, "10": 1, "A": 1, "J": 3, "Q": 0, "K": 0}
-numbers = ["8", "9", "10", "A", "J", "Q", "K"]
+ranks = ["8", "9", "10", "A", "J", "Q", "K"]
+ranks = [rank.lower() for rank in ranks]
 NoOfCardsAtATime = 3
 maxPoints = 56
  # 11/56 is ratio to loose, you can pick any.., or even a different way to calculate all this.
 honoursMinCall = maxPoints - round((12 / 56) * maxPoints - 1)
 
 suits = ["Spade", "Clubs", "Heart", "Diamonde"]
+suits = [suit.lower() for suit in suits]
 players = [
     {"name": "Alice", "cards": []},
     {"name": "Bob", "cards": []},
@@ -19,7 +21,6 @@ players = [
 noOfPlayers = len(players)
 
 currentDeck = []
-bool8 = True
 
 def honoursFn(bid):
     bidMapping = {}
@@ -27,8 +28,6 @@ def honoursFn(bid):
     bidMapping[f"honours"] = honoursMinCall
     for i, point in enumerate(range(honoursMinCall + 3, maxPoints, 3), start=1):
         bidMapping[f"honours {i}"] = point
-    bidMapping[f"honours {i + 1}"] = maxPoints
-    # I have allowed maxPoints honour call, if a player really wants to flex that they don't need extra point for winning solo contractor mode.
 
     value = bidMapping.get(bid)
     if value is not None:
@@ -40,35 +39,58 @@ def honoursFn(bid):
 def soloContractorFn(bid):
     return 56
 
+def makeCardTemplate(currentDeck):
+    bool8 = True
+    for rank in ranks:
+        for i in range(4):
+            currentDeck.append(rank + ' ' + suits[i])
 
-for number in numbers:
+        if (rank == "8" and bool8):
+            bool8 = False
+            continue
 
-    currentDeck.append(number + ' ' + suits[0])
-    currentDeck.append(number + ' ' + suits[1])
-    currentDeck.append(number + ' ' + suits[2])
-    currentDeck.append(number + ' ' + suits[3])
+        for i in range(4):
+            currentDeck.append(rank + ' ' + suits[i])
 
-    if (number == "8" and bool8):
-        bool8 = False
-        continue
+    currentDeck.append('8' + ' ' + suits[1])
+    currentDeck.append('8' + ' ' + suits[3])
 
-    currentDeck.append(number + ' ' + suits[0])
-    currentDeck.append(number + ' ' + suits[1])
-    currentDeck.append(number + ' ' + suits[2])
-    currentDeck.append(number + ' ' + suits[3])
+def distributeCards(currentDeck):
+    for _ in range(3):
+        random.shuffle(currentDeck)
 
-currentDeck.append('8' + ' ' + suits[1])
-currentDeck.append('8' + ' ' + suits[3])
+    for i in range(0, len(currentDeck), NoOfCardsAtATime):
+        cardDealTurn = (i // NoOfCardsAtATime) % (noOfPlayers) # Integer floor division
+        players[cardDealTurn]["cards"].extend(currentDeck[i:i+3])
+    return
 
-for _ in range(3):
-    random.shuffle(currentDeck)
+def displayCards(player):
 
-for i in range(0, len(currentDeck), NoOfCardsAtATime):
-    cardDealTurn = (i // NoOfCardsAtATime) % (noOfPlayers) # Integer floor division
-    players[cardDealTurn]["cards"].extend(currentDeck[i:i+3])
+    def draw(corner, middle, seperation):
+        parameters = [corner]
+        for i in range(7):
+            parameters.append(middle[i])
+            parameters.append(seperation)
+        parameters.append(middle[i + 1])
+        parameters.append(corner)
+        lengthOfParameters = len(parameters)
+        template = '{}' * lengthOfParameters
+        print(template.format(*parameters))
 
+    maxLength = len("Diamonde") + 5
 
-def bidding():
+    draw('+', ['-' * maxLength for i in range(8)], '.')
+    for card in player["cards"]:
+        cardSplit = card.split(' ')
+        cardSplit[0] = cardSplit[0].upper()
+        card
+        card.center(maxLength)
+    draw('|', [card.center(maxLength) for card in player["cards"]], '|')
+    draw('+', ['-' * maxLength for i in range(8)], '.')
+
+    return
+
+def bidding(players):
     # Sending things as a list so the original value changes..
     def playerCountAndConditionalValidityFn(playersTeamBidded, index1, validityBool, index2):
         if (playersTeamBidded[index1] < maxPlayersPerTeam):
@@ -77,7 +99,7 @@ def bidding():
             validityBool[index2] = False
 
     def notPassing(bid):
-        nonlocal bidPlayer, highestBid, highestBidTeam, teamToBid, teamToBidStarter
+        nonlocal bidPlayer, highestBidPlayer, highestBid, highestBidTeam, teamToBid, teamToBidStarter
 
         # if (honours):
         #     pass
@@ -91,12 +113,9 @@ def bidding():
             return
 
         if (bid > highestBid and bid < maxPoints + 1):
+            highestBidPlayer = bidPlayer
             highestBid = bid
             highestBidTeam = teamToBid
-            if (bid + 1 > maxPoints):
-                whileValidity[0] = False
-                return True
-
             otherTeamToBid = 1 - teamToBid
             if (ifValidity[otherTeamToBid]):
                 if teamToBidStarter == teamToBid:
@@ -108,13 +127,17 @@ def bidding():
             else:
                 whileValidity[0] = False
 
-            if (not any(ifValidity)):
-                whileValidity[0] = False
-
             if teamToBid == 0:
                 teamToBid = 1
             else:
                 teamToBid = 0
+
+            if (bid + 1 > maxPoints):
+                whileValidity[0] = False
+                return True
+            
+            if (not any(ifValidity)):
+                whileValidity[0] = False
             return True
         else:
             print("Invalid bid")
@@ -152,11 +175,10 @@ def bidding():
         else:
             # After honours is called, players should only be able to call higher honours, not raw numbers like 49, so deliberately passing 0.
             returnValue = notPassing(0)
-            print("You are only allowed to perform higher honours calls")
+            print("You are only allowed to perform higher honours calls or solo")
         
     currentBidStarter = 2
     teamToBid = None # 0 for team 1, 1 for team 2
-    playersTeamBidded = [0, 0]
 
     if (currentBidStarter % 2 == 0):
         teamToBidStarter = 0
@@ -165,6 +187,7 @@ def bidding():
         teamToBidStarter = 1
         teamToBid = 1
 
+    playersTeamBidded = [0, 0]
     highestBid = maxPoints // 2 - 1 # Start just before actual highest bid (14, 28, 42) -> (13, 27, 41)
     highestSpecialMode = {
         "honours": None,
@@ -172,6 +195,7 @@ def bidding():
     }
     highestBidTeam = 0
     bidPlayer = currentBidStarter
+    highestBidPlayer = None
     maxPlayersPerTeam = noOfPlayers // 2 - 1
     whileValidity = [True] # List for mutation by playerCountAndConditionalValidityFn()
     ifValidity = [True, True]
@@ -184,15 +208,17 @@ def bidding():
 
     # Without this, the first player can mess up a bad special bid call, and then be able to pass the game
     while True:
+        displayCards(players[bidPlayer])
         bid = input(f"Bid, the lowest you can bid is {maxPoints // 2} (Player {bidPlayer}): ").lower()
         if bid == "pass":
             print("The first player isn't allowed to pass")
         elif bid == "exit":
-            return
+            return 0, 0, 0
         elif handleBids(bid):
             break
 
     while whileValidity[0]:
+        displayCards(players[bidPlayer])
         bid = input(bidText.format(bidPlayer)).lower() # No concept as 0th player in game.
         if bid == "exit":
             return
@@ -207,47 +233,67 @@ def bidding():
 
     if (specialModeBools["solo"]):
         print("Player", highestSpecialMode["solo"], "has chosen SOLO CONTRACTOR mode")
-        return [highestBid, bidPlayer]
+        return [highestBid, highestBidTeam, highestBidPlayer]
     elif (specialModeBools["honours"]):
         print("Team", highestBidTeam, "has called", highestSpecialMode["honours"])
-        return [highestBid, bidPlayer]
+        return [highestBid, highestBidTeam, highestBidPlayer]
     else:
         print("The highest bid is", highestBid, "by team", highestBidTeam)
-        return [highestBid, bidPlayer]
-    
-bidding()
-# Testing my implementation of the below
-#implement solo contractor, change the bid text after an honours, prevent ppl from simply betting the points higher, and actually using the honours 1 system
-while False:
-    firstSuit = True
+        return [highestBid, highestBidTeam, highestBidPlayer]
 
-    
-    for i in range(len(players)):
-        for card in players[i]["cards"]:
-            print(f"{card} ", end="")
-        print()
-        selectedCard = input(f"Player {i+1}'s turn \n")
+def handleRound(players, highestBid, highestBidTeam, highestBidPlayer):
 
-        if input == 0:
-            break
+    while True:
+        firstSuit = True
+        for i in range(len(players)):
+            while True:
+                # Make sure the variables are assigned properly
+                while True:
+                    try:
+                        displayCards(players[i])
+                        selectedCard = input(f"Player {i+1}'s turn: ").lower()
 
-        if (selectedCard in ("king", "k", "queen", "q", "jack", "j", "ace", "a")):
-            pass
-        value, suit = selectedCard.lower().split(" ")
-        if (value in ("heart", "spade", "club", "diamonde")):
-            temp = value
-            value = suit
-            suit = temp
+                        if input == 'exit':
+                            return
+                        
+                        rank, suit = selectedCard.split(" ")
+                        break
+                    except (ValueError):
+                        print("Incorrect format, try typing in the way it is displayed above (not case sensitive):")
 
-        if (firstSuit):
-            currentSuit = suit
-        if(suit != firstSuit):
-            continue
+                if (rank in ("heart", "spade", "club", "diamonde")):
+                    temp = rank
+                    rank = suit
+                    suit = temp
+
+                # Sorting things like Heart 10, to 10 Heart
+                selectedCard = rank + ' ' + suit
+
+                if (selectedCard not in players[i]["cards"]):
+                    print("You do not have this card")
+                    continue
+
+                if (firstSuit):
+                    currentSuit = suit
+                    firstSuit = False
+
+                if(suit != currentSuit):
+                    print(f"Play a card of the suit {currentSuit}")
+                    continue
+                else:
+                    players
+                    break
 
 
-        #print(value)
-        #print(suit) Code now distributes cards, and has seperated value and suit
 
+            #print(rank)
+            #print(suit) Code now distributes cards, and has seperated rank and suit
+
+makeCardTemplate(currentDeck)
+distributeCards(currentDeck)
+highestBid, highestBidTeam, highestBidPlayer = bidding(players)
+#print(highestBid, highestBidTeam, highestBidPlayer)
+handleRound(players, highestBid, highestBidTeam, highestBidPlayer)
     
         
 
