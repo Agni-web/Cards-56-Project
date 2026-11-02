@@ -6,6 +6,7 @@ NoOfCardsAtATime = 3
 maxPoints = 56
  # 11/56 is ratio to loose, you can pick any.., or even a different way to calculate all this.
 honoursMinCall = maxPoints - round((12 / 56) * maxPoints - 1)
+currentBidStarter = 2
 
 suits = ["Spade", "Clubs", "Heart", "Diamonde"]
 suits = [suit.lower() for suit in suits]
@@ -66,9 +67,10 @@ def distributeCards(currentDeck):
 
 def displayCards(player):
 
+    noOfCards = len(player["cards"])
     def draw(corner, middle, seperation):
         parameters = [corner]
-        for i in range(7):
+        for i in range(noOfCards - 1):
             parameters.append(middle[i])
             parameters.append(seperation)
         parameters.append(middle[i + 1])
@@ -79,14 +81,17 @@ def displayCards(player):
 
     maxLength = len("Diamonde") + 5
 
-    draw('+', ['-' * maxLength for i in range(8)], '.')
+    draw('+', ['-' * maxLength for i in range(noOfCards)], '.')
+    # Convert the first letter to caps, combine all into a list called cards
+    cards = []
     for card in player["cards"]:
         cardSplit = card.split(' ')
-        cardSplit[0] = cardSplit[0].upper()
-        card
-        card.center(maxLength)
-    draw('|', [card.center(maxLength) for card in player["cards"]], '|')
-    draw('+', ['-' * maxLength for i in range(8)], '.')
+        cardSplit[0] = cardSplit[0][0].upper() + cardSplit[0][1:]
+        cardSplit[1] = cardSplit[1][0].upper() + cardSplit[1][1:]
+        card = cardSplit[0] + ' ' + cardSplit[1]
+        cards.append(card.center(maxLength))
+    draw('|', cards, '|')
+    draw('+', ['-' * maxLength for i in range(noOfCards)], '.')
 
     return
 
@@ -177,7 +182,6 @@ def bidding(players):
             returnValue = notPassing(0)
             print("You are only allowed to perform higher honours calls or solo")
         
-    currentBidStarter = 2
     teamToBid = None # 0 for team 1, 1 for team 2
 
     if (currentBidStarter % 2 == 0):
@@ -227,9 +231,8 @@ def bidding(players):
             bidPlayer += 2    
         else:
             handleBids(bid)
-        # I used this statement to allow me to use the variable noOfPlayers directly, otherwise it would have to be, if (bidPlayer > noOfPlayers - 1)
-        if not (bidPlayer < noOfPlayers): 
-            bidPlayer = bidPlayer % noOfPlayers # Let it build up till player 6 (so bidPlayer = 5), then round to player 1 (bidPlayer = 0)
+
+        bidPlayer = bidPlayer % noOfPlayers # Let it build up till player 6 (so bidPlayer = 5), then round to player 1 (bidPlayer = 0)
 
     if (specialModeBools["solo"]):
         print("Player", highestSpecialMode["solo"], "has chosen SOLO CONTRACTOR mode")
@@ -243,33 +246,64 @@ def bidding(players):
 
 def handleRound(players, highestBid, highestBidTeam, highestBidPlayer):
 
+    def sortSuitandRank(card, *, rankNeeded):
+        while True:
+            try:
+                rank, suit = card.split(" ")
+                break
+            except (ValueError):
+                return None
+
+        if (rank in ("heart", "spade", "club", "diamonde")):
+            temp = rank
+            rank = suit
+            suit = temp
+        
+        if rankNeeded == True:
+            return suit, rank
+        else:
+            return suit
+
+    def checkForSuit(player, *, suit, currentSuit):
+        if(suit != currentSuit):
+            suitsOfPlayer = []
+            for card in player["cards"]:
+                value = sortSuitandRank(card, rankNeeded=False)
+                # The main deck always have a valid suit rank, but this is just for safety and being explicit in code.
+                if value:
+                    suitsOfPlayer.append(value)
+            if currentSuit in suitsOfPlayer:
+                return True
+            else:
+                return False
+
+    round = {
+        "starter": currentBidStarter,
+        "holder": currentBidStarter
+    }
     while True:
         firstSuit = True
-        for i in range(len(players)):
+        # i is important as players that is starting the round can be anyone
+        print("NEW ROUND \n \n")
+        for i in range(len(players)): 
+            index = (round["starter"] + i) % noOfPlayers
             while True:
-                # Make sure the variables are assigned properly
                 while True:
-                    try:
-                        displayCards(players[i])
-                        selectedCard = input(f"Player {i+1}'s turn: ").lower()
-
-                        if input == 'exit':
-                            return
-                        
-                        rank, suit = selectedCard.split(" ")
+                    displayCards(players[index])
+                    selectedCard = input(f"{players[index]["name"]}'s turn: ").lower()
+                    if input == 'exit':
+                        return
+                    tempValueHolder = sortSuitandRank(selectedCard, rankNeeded=True)
+                    if tempValueHolder:
+                        suit, rank = tempValueHolder
                         break
-                    except (ValueError):
-                        print("Incorrect format, try typing in the way it is displayed above (not case sensitive):")
-
-                if (rank in ("heart", "spade", "club", "diamonde")):
-                    temp = rank
-                    rank = suit
-                    suit = temp
+                    else:
+                        print("Incorrect format, try typing in the way it is displayed above (not case sensitive):")    
 
                 # Sorting things like Heart 10, to 10 Heart
                 selectedCard = rank + ' ' + suit
 
-                if (selectedCard not in players[i]["cards"]):
+                if (selectedCard not in players[index]["cards"]):
                     print("You do not have this card")
                     continue
 
@@ -277,23 +311,28 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer):
                     currentSuit = suit
                     firstSuit = False
 
-                if(suit != currentSuit):
+                if(suit != currentSuit and checkForSuit(players[index], suit=suit, currentSuit=currentSuit)):
                     print(f"Play a card of the suit {currentSuit}")
-                    continue
                 else:
-                    players
+                    players[index]["cards"].remove(selectedCard)
                     break
+                
 
 
 
             #print(rank)
             #print(suit) Code now distributes cards, and has seperated rank and suit
+def main():
+    makeCardTemplate(currentDeck)
+    distributeCards(currentDeck)
+    highestBid, highestBidTeam, highestBidPlayer = bidding(players)
+    if highestBid == 0:
+        return
+    #print(highestBid, highestBidTeam, highestBidPlayer)
+    handleRound(players, highestBid, highestBidTeam, highestBidPlayer)
 
-makeCardTemplate(currentDeck)
-distributeCards(currentDeck)
-highestBid, highestBidTeam, highestBidPlayer = bidding(players)
-#print(highestBid, highestBidTeam, highestBidPlayer)
-handleRound(players, highestBid, highestBidTeam, highestBidPlayer)
-    
-        
-
+main()
+# implement mvp, then clean up the variable names
+# Implement trump card
+# Implemented card display fixes (unable to scale according to player's cards), forcing player to deck suit if they have it + more
+# Generalised player % noOfPlayers to both the main round function and the bidding function
