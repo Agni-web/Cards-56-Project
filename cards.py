@@ -80,15 +80,20 @@ def displayCards(player):
 
     noOfCards = len(player["cards"])
     def draw(corner, middle, seperation):
+        rangeOfCards = noOfCards - 1
         parameters = [corner]
-        for i in range(noOfCards - 1):
-            parameters.append(middle[i])
-            parameters.append(seperation)
-        parameters.append(middle[i + 1])
-        parameters.append(corner)
-        lengthOfParameters = len(parameters)
-        template = '{}' * lengthOfParameters
-        print(template.format(*parameters))
+        if rangeOfCards > 1:
+            for i in range(rangeOfCards):
+                parameters.append(middle[i])
+                parameters.append(seperation)
+            parameters.append(middle[i + 1])
+            parameters.append(corner)
+            lengthOfParameters = len(parameters)
+            template = '{}' * lengthOfParameters
+            print(template.format(*parameters))
+        else:
+            parameters.append(middle[0])
+            parameters.append(corner)
 
     maxLength = len("Diamonde") + 5
 
@@ -299,31 +304,36 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
                 return True
             else:
                 return False
-
+    temp = sortSuitandRank(trump, rankNeeded=True)
     currentGame = {
         # Holder team will be evaluated on the fly
         "roundHolderPlayer": currentBidStarter,
         # Since only 2 teamsn (core part of the game), we will base things off of the game starting team.
         "starterTeam": teamToBidStarter,
         "starterTeamPoints": 0,
-        "trumpSuite": trump[0],
-        "trumpRank": trump[1],
+        "trumpSuite": temp[0],
+        "trumpRank": temp[1],
         "trumpRevealed": False
     }
-    while True:
-        currentHighestTrumpRank = None
+    for _ in range(len(players[0]["cards"])):
+        index = {
+            "roundStarter": currentGame["roundHolderPlayer"],
+            "currentPlayerToPlay": None
+        }
         currentHighestRank = None
+        currentHighestTrumpRank = None
         firstSuit = True
         points = 0
         # i is important as players that is starting the round can be anyone
         print("NEW ROUND \n \n")
         
-        for i in range(len(players)): 
-            index = (currentGame["roundHolderPlayer"] + i) % noOfPlayers
+        for i in range(len(players) ):
+            index["currentPlayerToPlay"] = (index["roundStarter"] + i) % noOfPlayers
             while True:
+
                 while True:
-                    displayCards(players[index])
-                    selectedCard = input(f"{players[index]["name"]}'s turn: ").lower()
+                    displayCards(players[index["currentPlayerToPlay"]])
+                    selectedCard = input(f"{players[index["currentPlayerToPlay"]]["name"]}'s turn: ").lower()
                     if input == 'exit':
                         return
                     tempValueHolder = sortSuitandRank(selectedCard, rankNeeded=True)
@@ -337,7 +347,7 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
                 selectedCard = rank + ' ' + suit
 
                 # This already ensures suit and rank are correct.
-                if (selectedCard not in players[index]["cards"]):
+                if (selectedCard not in players[index["currentPlayerToPlay"]]["cards"]):
                     print("You do not have this card")
                     continue
 
@@ -345,32 +355,33 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
                     currentSuit = suit
                     firstSuit = False
 
-                if(suit != currentSuit and checkForSuit(players[index], suit=suit, currentSuit=currentSuit)):
+                if(suit != currentSuit and checkForSuit(players[index["currentPlayerToPlay"]], suit=suit, currentSuit=currentSuit)):
                     print(f"Play a card of the suit {currentSuit}")
                 else:
                     #if currentSuit is not trump and suit == trump: -> If a player doesn't have trump, obviously their current card can't be trump
-                    if suit == currentGame["trumpSuite"]:
-                        currentGame["roundHolderPlayer"] = index
+                    if suit == currentGame["trumpSuite"] and deck["priority"][rank] > deck["priority"].get(currentHighestTrumpRank, -1):
+                        currentGame["roundHolderPlayer"] = index["currentPlayerToPlay"]
                         currentHighestTrumpRank = rank
                     # Get is used for avoiding error on the first run
-                    elif (suit == currentSuit and deck["priority"][rank] > deck["priority"].get(currentHighestRank, -1)):
-                        currentGame["roundHolderPlayer"] = index
+                    elif (suit == currentSuit and deck["priority"][rank] > deck["priority"].get(currentHighestRank, -1)
+                          and currentHighestTrumpRank is None):
+                        currentGame["roundHolderPlayer"] = index["currentPlayerToPlay"]
                         currentHighestRank = rank
 
-                    players[index]["cards"].remove(selectedCard)
-                    points += deck["priority"][rank]
+                    players[index["currentPlayerToPlay"]]["cards"].remove(selectedCard)
+                    points += deck["points"][rank]
                     print(f"Points collected {points}")
                     break
+
+            if (playerToTeam(index["currentPlayerToPlay"]) == currentGame["starterTeam"]):
+                currentGame["starterTeamPoints"] += points
+                print(f"Points collected by team {currentGame["starterTeamPoints"]}")
                     
-                print(f"Player having the round {currentGame["roundHolderPlayer"]}")
-                print(f"Team that bid {currentGame["starterTeamPoints"]}")
+            print(f"Player having the round {players[currentGame["roundHolderPlayer"]]["name"]}")
+            print(f"Team that bid {currentGame["starterTeamPoints"]}")
 
-                if (playerToTeam(index) == currentGame["starterTeam"]):
-                    currentGame["starterTeamPoints"] += points
 
-                break
-            #print(rank)
-            #print(suit) Code now distributes cards, and has seperated rank and suit
+
 def main():
     makeCardTemplate(currentDeck)
     distributeCards(currentDeck)
@@ -384,4 +395,4 @@ main()
 # implement mvp, then clean up the variable names, player can't start with the trump, if they selected it unless it was revealed
 # Implement trump card, in solo, they start the round, currently getTrump() doesnt fact check if the player has the card for trump, make
 # that a global function, fix all the errors by debugging for every new addition (line 350 onward).
-# Implemented deck dictionaries' key lowering, playerToTeam(), getTrump(), and a lot others.
+# Player can select a trump they dont have, have to fix rendering of final one cards...
