@@ -1,5 +1,5 @@
 import random, re
-import helpers
+import helpers, testCase
 
 deck = {
     "points": {"8": 0, "9": 2, "10": 1, "A": 1, "J": 3, "Q": 0, "K": 0},
@@ -17,10 +17,15 @@ NoOfCardsAtATime = 3
 maxPoints = 56
  # 11/56 is ratio to loose, you can pick any.., or even a different way to calculate all this.
 honoursMinCall = maxPoints - round((12 / 56) * maxPoints - 1)
+starters = {
+    "currentBidStarter": 2,
+    "teamToBidStarter": None
+}
 currentBidStarter = 2
 # Gets defined in bidding()
 teamToBidStarter = None
 
+# Write all similar colours like black, and red, together.
 suits = ["Spade", "Clubs", "Heart", "Diamonde"]
 suits = [suit.lower() for suit in suits]
 players = [
@@ -45,7 +50,7 @@ def bidding(players):
             validityBool[index2] = False
 
     def notPassing(bid):
-        nonlocal bidPlayer, highestBidPlayer, highestBid, highestBidTeam, teamToBid, teamToBidStarter
+        nonlocal bidPlayer, highestBidPlayer, highestBid, highestBidTeam, teamToBid
 
         # if (honours):
         #     pass
@@ -64,10 +69,10 @@ def bidding(players):
             highestBidTeam = teamToBid
             otherTeamToBid = 1 - teamToBid
             if (ifValidity[otherTeamToBid]):
-                if teamToBidStarter == teamToBid:
-                    bidPlayer = currentBidStarter + playersTeamBidded[otherTeamToBid] * 2 + 1
+                if starters["teamToBidStarter"] == teamToBid:
+                    bidPlayer = starters["currentBidStarter"] + playersTeamBidded[otherTeamToBid] * 2 + 1
                 else:
-                    bidPlayer = currentBidStarter + playersTeamBidded[otherTeamToBid] * 2
+                    bidPlayer = starters["currentBidStarter"] + playersTeamBidded[otherTeamToBid] * 2
 
                 playerCountAndConditionalValidityFn(playersTeamBidded, teamToBid, ifValidity, teamToBid)
             else:
@@ -136,8 +141,8 @@ def bidding(players):
             else:
                 print("Invalid trump selection format (It should be suit rank, or rank suit, like J heart, hEaRT j , case insensitive)")
 
-    teamToBid = helpers.playerToTeam(currentBidStarter)
-    teamToBidStarter = teamToBid
+    teamToBid = helpers.playerToTeam(starters["currentBidStarter"])
+    starters["teamToBidStarter"] = teamToBid
 
     playersTeamBidded = [0, 0]
     highestBid = maxPoints // 2 - 1 # Start just before actual highest bid (14, 28, 42) -> (13, 27, 41)
@@ -146,7 +151,7 @@ def bidding(players):
         "solo": None
     }
     highestBidTeam = 0
-    bidPlayer = currentBidStarter
+    bidPlayer = starters["currentBidStarter"]
     highestBidPlayer = None
     maxPlayersPerTeam = noOfPlayers // 2 - 1
     whileValidity = [True] # List for mutation by playerCountAndConditionalValidityFn()
@@ -196,9 +201,8 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
     temp = helpers.sortSuitandRank(trump, suits=suits, ranks=ranks, rankNeeded=True)
     currentGame = {
         # Holder team will be evaluated on the fly
-        "roundHolderPlayer": currentBidStarter,
+        "roundHolderPlayer": starters["currentBidStarter"],
         # Since only 2 teamsn (core part of the game), we will base things off of the game starting team.
-        "starterTeam": teamToBidStarter,
         "starterTeamPoints": 0,
         "trumpSuite": temp[0],
         "trumpRank": temp[1],
@@ -264,22 +268,23 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
                     
             print(f"Player having the round {players[currentGame["roundHolderPlayer"]]["name"]}")
 
-        print(f"Team that bid {currentGame["starterTeamPoints"]}")
-        if (helpers.playerToTeam(index["currentPlayerToPlay"]) == currentGame["starterTeam"]):
+        print(f"Team that bid's points {currentGame["starterTeamPoints"]}")
+        if (helpers.playerToTeam(currentGame["roundHolderPlayer"]) == starters["teamToBidStarter"]):
             currentGame["starterTeamPoints"] += points
-            print(f"Points collected by team {currentGame["starterTeamPoints"]}")
-
+            print(f"Points successfully collected by team {starters["teamToBidStarter"]}")
 
 def main():
     helpers.makeCardTemplate(currentDeck, ranks, suits)
     helpers.distributeCards(currentDeck, NoOfCardsAtATime, noOfPlayers, players)
+    helpers.sortingTheCards(players, suits, ranks, deck["priority"])
     highestBid, highestBidTeam, highestBidPlayer, trump = bidding(players)
     if highestBid == 0:
-        return
-    #print(highestBid, highestBidTeam, highestBidPlayer)
+         return
+
     handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump)
+    #handleRound(*testCase.test())
 
 main()
 # implement mvp, then clean up the variable names, player can't start with the trump, if they selected it unless it was revealed
 # In solo, they start the round,
-# Implement sorting
+# implement winning and loosing, implement overall winning and loosing using files
