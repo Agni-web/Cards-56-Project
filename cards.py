@@ -1,4 +1,6 @@
 import random, re
+import helpers
+
 deck = {
     "points": {"8": 0, "9": 2, "10": 1, "A": 1, "J": 3, "Q": 0, "K": 0},
     "priority": {"8": 0, "9": 5, "10": 3, "A": 4, "J": 6, "Q": 1, "K": 2}
@@ -9,7 +11,7 @@ deck = {
     outerLoopKey: {key.lower(): value for key, value in innerLoopValue.items()}
     for outerLoopKey, innerLoopValue in deck.items()
 }
-ranks = [rank.lower() for rank in ranks]
+ranks = {rank.lower() for rank in ranks} # Making a set for efficient O(1) if rank in ranks lookups.
 
 NoOfCardsAtATime = 3
 maxPoints = 56
@@ -34,107 +36,6 @@ noOfPlayers = len(players)
 
 currentDeck = []
 
-def honoursFn(bid):
-    bidMapping = {}
-
-    bidMapping[f"honours"] = honoursMinCall
-    for i, point in enumerate(range(honoursMinCall + 3, maxPoints, 3), start=1):
-        bidMapping[f"honours {i}"] = point
-
-    value = bidMapping.get(bid)
-    if value is not None:
-        key = next(key for key, value in bidMapping.items() if value == bidMapping[bid])
-        return bidMapping[bid], key
-    else:
-        return None, None
-
-def soloContractorFn(bid):
-    return 56
-
-def makeCardTemplate(currentDeck):
-    bool8 = True
-    for rank in ranks:
-        for i in range(4):
-            currentDeck.append(rank + ' ' + suits[i])
-
-        if (rank == "8" and bool8):
-            bool8 = False
-            continue
-
-        for i in range(4):
-            currentDeck.append(rank + ' ' + suits[i])
-
-    currentDeck.append('8' + ' ' + suits[1])
-    currentDeck.append('8' + ' ' + suits[3])
-
-def distributeCards(currentDeck):
-    for _ in range(3):
-        random.shuffle(currentDeck)
-
-    for i in range(0, len(currentDeck), NoOfCardsAtATime):
-        cardDealTurn = (i // NoOfCardsAtATime) % (noOfPlayers) # Integer floor division
-        players[cardDealTurn]["cards"].extend(currentDeck[i:i+3])
-    return
-
-def displayCards(player):
-
-    noOfCards = len(player["cards"])
-    def draw(corner, middle, seperation):
-        rangeOfCards = noOfCards - 1
-        parameters = [corner]
-        if rangeOfCards > 1:
-            for i in range(rangeOfCards):
-                parameters.append(middle[i])
-                parameters.append(seperation)
-            parameters.append(middle[i + 1])
-            parameters.append(corner)
-            lengthOfParameters = len(parameters)
-            template = '{}' * lengthOfParameters
-            print(template.format(*parameters))
-        else:
-            parameters.append(middle[0])
-            parameters.append(corner)
-
-    maxLength = len("Diamonde") + 5
-
-    draw('+', ['-' * maxLength for i in range(noOfCards)], '.')
-    # Convert the first letter to caps, combine all into a list called cards
-    cards = []
-    for card in player["cards"]:
-        cardSplit = card.split(' ')
-        cardSplit[0] = cardSplit[0][0].upper() + cardSplit[0][1:]
-        cardSplit[1] = cardSplit[1][0].upper() + cardSplit[1][1:]
-        card = cardSplit[0] + ' ' + cardSplit[1]
-        cards.append(card.center(maxLength))
-    draw('|', cards, '|')
-    draw('+', ['-' * maxLength for i in range(noOfCards)], '.')
-
-    return
-
-def playerToTeam(playerIndex):
-    if (playerIndex % 2 == 0):
-        return 0
-    else:
-        return 1
-
-def sortSuitandRank(card, *, rankNeeded):
-    while True:
-        try:
-            rank, suit = card.split(" ")
-            break
-        except (ValueError):
-            return None
-
-    if (rank in suits):
-        temp = rank
-        rank = suit
-        suit = temp
-    
-    if rankNeeded == True:
-        return suit, rank
-    else:
-        return suit
-    
 def bidding(players):
     # Sending things as a list so the original value changes..
     def playerCountAndConditionalValidityFn(playersTeamBidded, index1, validityBool, index2):
@@ -193,7 +94,7 @@ def bidding(players):
         returnValue = None
 
         if (re.fullmatch(r"honours( \d+)?", bid)):
-            bid, key = honoursFn(bid)
+            bid, key = helpers.honoursFn(bid, honoursMinCall, maxPoints)
             if bid is None:
                 print("Invalid honours call")
                 returnValue = False
@@ -207,7 +108,7 @@ def bidding(players):
             return returnValue
         
         elif (bid == "solo"):
-            bid = soloContractorFn(bid)
+            bid = helpers.soloContractorFn(bid)
             specialModeBools["solo"] = True
             highestSpecialMode["solo"] = bidPlayer
             returnValue = notPassing(bid)
@@ -224,17 +125,18 @@ def bidding(players):
 
     def getTrump(player):
         while True:
-            try:
-                trump = input(f"Select the trump player {player}: ").lower()
-                suit, rank = sortSuitandRank(trump, rankNeeded=True)
-                if suit in suits:
+            helpers.displayCards(player)
+            trump = input(f"Select the trump player {player["name"]}: ").lower()
+            value = helpers.sortSuitandRank(trump, suits=suits, ranks=ranks, rankNeeded=True)
+            if value:
+                if helpers.checkForSuitAndRank(player, trump, suits=suits, ranks=ranks, rankNeeded=True):
                     return trump
                 else:
                     print("Invalid trump selected")
-            except:
-                print("Invalid trump selection format")
+            else:
+                print("Invalid trump selection format (It should be suit rank, or rank suit, like J heart, hEaRT j , case insensitive)")
 
-    teamToBid = playerToTeam(currentBidStarter)
+    teamToBid = helpers.playerToTeam(currentBidStarter)
     teamToBidStarter = teamToBid
 
     playersTeamBidded = [0, 0]
@@ -258,8 +160,8 @@ def bidding(players):
 
     # Without this, the first player can mess up a bad special bid call, and then be able to pass the game
     while True:
-        displayCards(players[bidPlayer])
-        bid = input(f"Bid, the lowest you can bid is {maxPoints // 2} (Player {bidPlayer}): ").lower()
+        helpers.displayCards(players[bidPlayer])
+        bid = input(f"Bid, the lowest you can bid is {maxPoints // 2} (Player {players[bidPlayer]["name"]}): ").lower()
         if bid == "pass":
             print("The first player isn't allowed to pass")
         elif bid == "exit":
@@ -268,8 +170,8 @@ def bidding(players):
             break
 
     while whileValidity[0]:
-        displayCards(players[bidPlayer])
-        bid = input(bidText.format(bidPlayer)).lower() # No concept as 0th player in game.
+        helpers.displayCards(players[bidPlayer])
+        bid = input(bidText.format(players[bidPlayer]["name"])).lower() # No concept as 0th player in game.
         if bid == "exit":
             return
         elif (bid == "pass"):
@@ -282,29 +184,16 @@ def bidding(players):
 
     if (specialModeBools["solo"]):
         print("Player", highestSpecialMode["solo"], "has chosen SOLO CONTRACTOR mode")
-        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(highestBidPlayer)]
+        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(players[highestBidPlayer])]
     elif (specialModeBools["honours"]):
         print("Team", highestBidTeam, "has called", highestSpecialMode["honours"])
-        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(highestBidPlayer)]
+        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(players[highestBidPlayer])]
     else:
         print("The highest bid is", highestBid, "by team", highestBidTeam)
-        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(highestBidPlayer)]
+        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(players[highestBidPlayer])]
 
 def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
-
-    def checkForSuit(player, *, suit, currentSuit):
-        if(suit != currentSuit):
-            suitsOfPlayer = []
-            for card in player["cards"]:
-                value = sortSuitandRank(card, rankNeeded=False)
-                # The main deck always have a valid suit rank, but this is just for safety and being explicit in code.
-                if value:
-                    suitsOfPlayer.append(value)
-            if currentSuit in suitsOfPlayer:
-                return True
-            else:
-                return False
-    temp = sortSuitandRank(trump, rankNeeded=True)
+    temp = helpers.sortSuitandRank(trump, suits=suits, ranks=ranks, rankNeeded=True)
     currentGame = {
         # Holder team will be evaluated on the fly
         "roundHolderPlayer": currentBidStarter,
@@ -332,16 +221,16 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
             while True:
 
                 while True:
-                    displayCards(players[index["currentPlayerToPlay"]])
+                    helpers.displayCards(players[index["currentPlayerToPlay"]])
                     selectedCard = input(f"{players[index["currentPlayerToPlay"]]["name"]}'s turn: ").lower()
                     if input == 'exit':
                         return
-                    tempValueHolder = sortSuitandRank(selectedCard, rankNeeded=True)
+                    tempValueHolder = helpers.sortSuitandRank(selectedCard, suits=suits, ranks=ranks, rankNeeded=True)
                     if tempValueHolder:
                         suit, rank = tempValueHolder
                         break
                     else:
-                        print("Incorrect format, try typing in the way it is displayed above (not case sensitive):")    
+                        print("Invalid card format (It should be suit rank, or rank suit, like J heart, hEaRT j , case insensitive)")    
 
                 # Sorting things like Heart 10, to 10 Heart
                 selectedCard = rank + ' ' + suit
@@ -355,7 +244,7 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
                     currentSuit = suit
                     firstSuit = False
 
-                if(suit != currentSuit and checkForSuit(players[index["currentPlayerToPlay"]], suit=suit, currentSuit=currentSuit)):
+                if(suit != currentSuit and helpers.checkForSuitAndRank(players[index["currentPlayerToPlay"]], currentSuit, suits=suits, ranks=ranks, rankNeeded=False)):
                     print(f"Play a card of the suit {currentSuit}")
                 else:
                     #if currentSuit is not trump and suit == trump: -> If a player doesn't have trump, obviously their current card can't be trump
@@ -372,19 +261,18 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
                     points += deck["points"][rank]
                     print(f"Points collected {points}")
                     break
-
-            if (playerToTeam(index["currentPlayerToPlay"]) == currentGame["starterTeam"]):
-                currentGame["starterTeamPoints"] += points
-                print(f"Points collected by team {currentGame["starterTeamPoints"]}")
                     
             print(f"Player having the round {players[currentGame["roundHolderPlayer"]]["name"]}")
-            print(f"Team that bid {currentGame["starterTeamPoints"]}")
 
+        print(f"Team that bid {currentGame["starterTeamPoints"]}")
+        if (helpers.playerToTeam(index["currentPlayerToPlay"]) == currentGame["starterTeam"]):
+            currentGame["starterTeamPoints"] += points
+            print(f"Points collected by team {currentGame["starterTeamPoints"]}")
 
 
 def main():
-    makeCardTemplate(currentDeck)
-    distributeCards(currentDeck)
+    helpers.makeCardTemplate(currentDeck, ranks, suits)
+    helpers.distributeCards(currentDeck, NoOfCardsAtATime, noOfPlayers, players)
     highestBid, highestBidTeam, highestBidPlayer, trump = bidding(players)
     if highestBid == 0:
         return
@@ -393,6 +281,5 @@ def main():
 
 main()
 # implement mvp, then clean up the variable names, player can't start with the trump, if they selected it unless it was revealed
-# Implement trump card, in solo, they start the round, currently getTrump() doesnt fact check if the player has the card for trump, make
-# that a global function, fix all the errors by debugging for every new addition (line 350 onward).
-# Player can select a trump they dont have, have to fix rendering of final one cards...
+# In solo, they start the round,
+# Implement sorting
