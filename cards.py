@@ -13,18 +13,6 @@ deck = {
 }
 ranks = {rank.lower() for rank in ranks} # Making a set for efficient O(1) if rank in ranks lookups.
 
-NoOfCardsAtATime = 3
-maxPoints = 56
- # 11/56 is ratio to loose, you can pick any.., or even a different way to calculate all this.
-honoursMinCall = maxPoints - round((12 / 56) * maxPoints - 1)
-starters = {
-    "currentBidStarter": 2,
-    "teamToBidStarter": None
-}
-currentBidStarter = 2
-# Gets defined in bidding()
-teamToBidStarter = None
-
 # Write all similar colours like black, and red, together.
 suits = ["Spade", "Clubs", "Heart", "Diamonde"]
 suits = [suit.lower() for suit in suits]
@@ -37,7 +25,19 @@ players = [
     {"name": "Akash", "cards": []}
 ]
 
-noOfPlayers = len(players)
+globalValues = {
+    "noOfCardsAtATime": 3,
+    "maxPoints": (_maxPoints := 56),
+    # 12/56 is ratio to loose, you can pick any.., or even a different way to calculate all this.
+    "honoursMinCall": _maxPoints - round((12 / 56) * _maxPoints - 1),
+    "currentBidStarter": 2,
+    # Gets defined in bidding()
+    "teamToBidStarter": None,
+    "noOfPlayers": len(players),
+    # Gets defined in bidding()
+    "noOfCards": None
+}
+del _maxPoints
 
 currentDeck = []
 
@@ -63,16 +63,16 @@ def bidding(players):
             print("Input shouldn't contain characters")
             return
 
-        if (bid > highestBid and bid < maxPoints + 1):
+        if (bid > highestBid and bid < globalValues["maxPoints"] + 1):
             highestBidPlayer = bidPlayer
             highestBid = bid
             highestBidTeam = teamToBid
             otherTeamToBid = 1 - teamToBid
             if (ifValidity[otherTeamToBid]):
-                if starters["teamToBidStarter"] == teamToBid:
-                    bidPlayer = starters["currentBidStarter"] + playersTeamBidded[otherTeamToBid] * 2 + 1
+                if globalValues["teamToBidStarter"] == teamToBid:
+                    bidPlayer = globalValues["currentBidStarter"] + playersTeamBidded[otherTeamToBid] * 2 + 1
                 else:
-                    bidPlayer = starters["currentBidStarter"] + playersTeamBidded[otherTeamToBid] * 2
+                    bidPlayer = globalValues["currentBidStarter"] + playersTeamBidded[otherTeamToBid] * 2
 
                 playerCountAndConditionalValidityFn(playersTeamBidded, teamToBid, ifValidity, teamToBid)
             else:
@@ -83,7 +83,7 @@ def bidding(players):
             else:
                 teamToBid = 0
 
-            if (bid + 1 > maxPoints):
+            if (bid + 1 > globalValues["maxPoints"]):
                 whileValidity[0] = False
                 return True
             
@@ -99,7 +99,7 @@ def bidding(players):
         returnValue = None
 
         if (re.fullmatch(r"honours( \d+)?", bid)):
-            bid, key = helpers.honoursFn(bid, honoursMinCall, maxPoints)
+            bid, key = helpers.honoursFn(bid, globalValues["honoursMinCall"], globalValues["maxPoints"])
             if bid is None:
                 print("Invalid honours call")
                 returnValue = False
@@ -135,25 +135,26 @@ def bidding(players):
             value = helpers.sortSuitandRank(trump, suits=suits, ranks=ranks, rankNeeded=True)
             if value:
                 if helpers.checkForSuitAndRank(player, trump, suits=suits, ranks=ranks, rankNeeded=True):
+                    player["cards"].remove(trump)
                     return trump
                 else:
                     print("Invalid trump selected")
             else:
                 print("Invalid trump selection format (It should be suit rank, or rank suit, like J heart, hEaRT j , case insensitive)")
 
-    teamToBid = helpers.playerToTeam(starters["currentBidStarter"])
-    starters["teamToBidStarter"] = teamToBid
+    teamToBid = helpers.playerToTeam(globalValues["currentBidStarter"])
+    globalValues["teamToBidStarter"] = teamToBid
 
     playersTeamBidded = [0, 0]
-    highestBid = maxPoints // 2 - 1 # Start just before actual highest bid (14, 28, 42) -> (13, 27, 41)
+    highestBid = globalValues["maxPoints"] // 2 - 1 # Start just before actual highest bid (14, 28, 42) -> (13, 27, 41)
     highestSpecialMode = {
         "honours": None,
         "solo": None
     }
     highestBidTeam = 0
-    bidPlayer = starters["currentBidStarter"]
+    bidPlayer = globalValues["currentBidStarter"]
     highestBidPlayer = None
-    maxPlayersPerTeam = noOfPlayers // 2 - 1
+    maxPlayersPerTeam = globalValues["noOfPlayers"] // 2 - 1
     whileValidity = [True] # List for mutation by playerCountAndConditionalValidityFn()
     ifValidity = [True, True]
     specialModeBools = {
@@ -166,11 +167,11 @@ def bidding(players):
     # Without this, the first player can mess up a bad special bid call, and then be able to pass the game
     while True:
         helpers.displayCards(players[bidPlayer])
-        bid = input(f"Bid, the lowest you can bid is {maxPoints // 2} (Player {players[bidPlayer]["name"]}): ").lower()
+        bid = input(f"Bid, the lowest you can bid is {globalValues["maxPoints"] // 2} (Player {players[bidPlayer]["name"]}): ").lower()
         if bid == "pass":
             print("The first player isn't allowed to pass")
         elif bid == "exit":
-            return 0, 0, 0, 0
+            return 0, 0, 0
         elif handleBids(bid):
             break
 
@@ -185,30 +186,60 @@ def bidding(players):
         else:
             handleBids(bid)
 
-        bidPlayer = bidPlayer % noOfPlayers # Let it build up till player 6 (so bidPlayer = 5), then round to player 1 (bidPlayer = 0)
+        bidPlayer = bidPlayer % globalValues["noOfPlayers"] # Let it build up till player 6 (so bidPlayer = 5), then round to player 1 (bidPlayer = 0)
+
+    globalValues["noOfCards"] = len(players[0]["cards"])
 
     if (specialModeBools["solo"]):
         print("Player", highestSpecialMode["solo"], "has chosen SOLO CONTRACTOR mode")
-        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(players[highestBidPlayer])]
+        return [highestBid, highestBidPlayer, getTrump(players[highestBidPlayer])]
     elif (specialModeBools["honours"]):
         print("Team", highestBidTeam, "has called", highestSpecialMode["honours"])
-        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(players[highestBidPlayer])]
+        return [highestBid, highestBidPlayer, getTrump(players[highestBidPlayer])]
     else:
         print("The highest bid is", highestBid, "by team", highestBidTeam)
-        return [highestBid, highestBidTeam, highestBidPlayer, getTrump(players[highestBidPlayer])]
+        return [highestBid, highestBidPlayer, getTrump(players[highestBidPlayer])]
 
-def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
+def handleRound(players, highestBid, highestBidPlayer, trump):
+
+    def getPlayerMove():
+        while True:
+            helpers.displayCards(players[index["currentPlayerToPlay"]])
+            selectedCard = input(f"{players[index["currentPlayerToPlay"]]["name"]}'s turn: ").lower()
+
+            if selectedCard == "exit":
+                return False
+            if selectedCard == "show trump":
+                fakePlayer = {
+                    "name": "heeeheee",
+                    "cards": [trump]
+                }
+                print("Trump revealed!")
+                helpers.displayCards(fakePlayer)
+                players[highestBidPlayer]["cards"].append(trump)
+                helpers.sortingTheCards(players[highestBidPlayer], suits, ranks, deck["priority"])
+                continue
+            
+            # Sorting things like Heart 10, to 10 Heart
+            tempValueHolder = helpers.sortSuitandRank(selectedCard, suits=suits, ranks=ranks, rankNeeded=True)
+
+            if tempValueHolder:
+                suit, rank = tempValueHolder
+                return suit, rank
+            else:
+                print("Invalid card format (It should be suit rank, or rank suit, like J heart, hEaRT j , case insensitive or type in Show Trump)")    ###
+
     temp = helpers.sortSuitandRank(trump, suits=suits, ranks=ranks, rankNeeded=True)
     currentGame = {
         # Holder team will be evaluated on the fly
-        "roundHolderPlayer": starters["currentBidStarter"],
+        "roundHolderPlayer": globalValues["currentBidStarter"],
         # Since only 2 teamsn (core part of the game), we will base things off of the game starting team.
         "starterTeamPoints": 0,
         "trumpSuite": temp[0],
         "trumpRank": temp[1],
         "trumpRevealed": False
     }
-    for _ in range(len(players[0]["cards"])):
+    for _ in range(globalValues["noOfCards"]):
         index = {
             "roundStarter": currentGame["roundHolderPlayer"],
             "currentPlayerToPlay": None
@@ -219,24 +250,15 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
         points = 0
         # i is important as players that is starting the round can be anyone
         print("NEW ROUND \n \n")
-        
-        for i in range(len(players) ):
-            index["currentPlayerToPlay"] = (index["roundStarter"] + i) % noOfPlayers
+        for i in range(len(players)):
+            index["currentPlayerToPlay"] = (index["roundStarter"] + i) % globalValues["noOfPlayers"]
             while True:
+                temp = getPlayerMove()
+                if temp:
+                    suit, rank = temp
+                else:
+                    continue
 
-                while True:
-                    helpers.displayCards(players[index["currentPlayerToPlay"]])
-                    selectedCard = input(f"{players[index["currentPlayerToPlay"]]["name"]}'s turn: ").lower()
-                    if input == 'exit':
-                        return
-                    tempValueHolder = helpers.sortSuitandRank(selectedCard, suits=suits, ranks=ranks, rankNeeded=True)
-                    if tempValueHolder:
-                        suit, rank = tempValueHolder
-                        break
-                    else:
-                        print("Invalid card format (It should be suit rank, or rank suit, like J heart, hEaRT j , case insensitive)")    
-
-                # Sorting things like Heart 10, to 10 Heart
                 selectedCard = rank + ' ' + suit
 
                 # This already ensures suit and rank are correct.
@@ -244,6 +266,10 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
                     print("You do not have this card")
                     continue
 
+                if (suit == currentGame["trumpSuite"] and currentGame["trumpRevealed"] is False and index["currentPlayerToPlay"] == highestBidPlayer):
+                    print("The person who has selected the trump cannot start with it until its revealed")
+                    continue
+                
                 if (firstSuit):
                     currentSuit = suit
                     firstSuit = False
@@ -269,22 +295,29 @@ def handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump):
             print(f"Player having the round {players[currentGame["roundHolderPlayer"]]["name"]}")
 
         print(f"Team that bid's points {currentGame["starterTeamPoints"]}")
-        if (helpers.playerToTeam(currentGame["roundHolderPlayer"]) == starters["teamToBidStarter"]):
+        if (helpers.playerToTeam(currentGame["roundHolderPlayer"]) == globalValues["teamToBidStarter"]):
             currentGame["starterTeamPoints"] += points
-            print(f"Points successfully collected by team {starters["teamToBidStarter"]}")
+            print(f"Points successfully collected by team {globalValues["teamToBidStarter"]}")
 
 def main():
     helpers.makeCardTemplate(currentDeck, ranks, suits)
-    helpers.distributeCards(currentDeck, NoOfCardsAtATime, noOfPlayers, players)
-    helpers.sortingTheCards(players, suits, ranks, deck["priority"])
-    highestBid, highestBidTeam, highestBidPlayer, trump = bidding(players)
+    helpers.distributeCards(currentDeck, globalValues["noOfCardsAtATime"], globalValues["noOfPlayers"], players)
+    for player in players:
+        helpers.sortingTheCards(player, suits, ranks, deck["priority"])
+    highestBid, highestBidPlayer, trump = bidding(players)
     if highestBid == 0:
-         return
+        return
 
-    handleRound(players, highestBid, highestBidTeam, highestBidPlayer, trump)
+    handleRound(players, highestBid, highestBidPlayer, trump)
     #handleRound(*testCase.test())
 
 main()
-# implement mvp, then clean up the variable names, player can't start with the trump, if they selected it unless it was revealed
+# implement mvp, then clean up the variable names
 # In solo, they start the round,
 # implement winning and loosing, implement overall winning and loosing using files
+# many scenerios, u can be playing, and as the person who kept trump, u now have to play that trump
+# You can be the player who kept the trump and now start with it if you got no other cards
+# Trump should be removed from the player but that will mess with the loops
+# If a person asks for trump, the main guy gets it back
+"""
+"""

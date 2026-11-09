@@ -41,19 +41,18 @@ def distributeCards(currentDeck, NoOfCardsAtATime, noOfPlayers, players):
         players[cardDealTurn]["cards"].extend(currentDeck[i:i+3])
     return
 
-def sortingTheCards(players, suits, ranks, rankOrder):
+def sortingTheCards(player, suits, ranks, rankOrder):
     suitOrder = {suits[0]: 0, suits[2]: 1, suits[1]: 2, suits[3]: 3}
-    for player in players:
 
-        playerCards = []
-        for card in player["cards"]:
-            playerCards.append(sortSuitandRank(card, suits=suits, ranks=ranks, rankNeeded=True))
+    playerCards = []
+    for card in player["cards"]:
+        playerCards.append(sortSuitandRank(card, suits=suits, ranks=ranks, rankNeeded=True))
 
-        # cards[1] is the suit part of a card. I should have made this a dictionary...
-        # - used for reversing just that one's order
-        playerCards.sort(key=lambda card: (suitOrder[card[0]], -rankOrder[card[1]]))
+    # cards[1] is the suit part of a card. I should have made this a dictionary...
+    # - used for reversing just that one's order
+    playerCards.sort(key=lambda card: (suitOrder[card[0]], -rankOrder[card[1]]))
 
-        player["cards"] = [card[1] + ' ' + card[0] for card in playerCards]
+    player["cards"] = [card[1] + ' ' + card[0] for card in playerCards]
 
 def displayCards(player):
 
