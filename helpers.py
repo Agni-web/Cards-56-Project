@@ -127,6 +127,9 @@ def checkForSuitAndRank(player, cardOrSuitToCompareTo, *, suits, ranks, rankNeed
             return False
     else:
         suitToCompareTo = cardOrSuitToCompareTo
+        if suitToCompareTo is None:
+            return None
+        
         suitsOfPlayer = []
         for card in player["cards"]:
             suitOfPlayer = sortSuitandRank(card, suits=suits, ranks=ranks, rankNeeded=rankNeeded) # rankNeeded = False always

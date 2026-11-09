@@ -201,35 +201,98 @@ def bidding(players):
         return [highestBid, highestBidPlayer, getTrump(players[highestBidPlayer])]
 
 def handleRound(players, highestBid, highestBidPlayer, trump):
+    def trumpRevealed():
+        fakePlayer = {
+            "name": "heeeheee",
+            "cards": [trump]
+        }
+        helpers.displayCards(fakePlayer)
+        players[highestBidPlayer]["cards"].append(trump)
+        helpers.sortingTheCards(players[highestBidPlayer], suits, ranks, deck["priority"])
+        currentGame["trumpRevealed"] = True
 
-    def getPlayerMove():
+    def getPlayerMove(currentSuit):
+        showTrumpBool = False
         while True:
             helpers.displayCards(players[index["currentPlayerToPlay"]])
             selectedCard = input(f"{players[index["currentPlayerToPlay"]]["name"]}'s turn: ").lower()
 
             if selectedCard == "exit":
-                return False
-            if selectedCard == "show trump":
-                fakePlayer = {
-                    "name": "heeeheee",
-                    "cards": [trump]
-                }
-                print("Trump revealed!")
-                helpers.displayCards(fakePlayer)
-                players[highestBidPlayer]["cards"].append(trump)
-                helpers.sortingTheCards(players[highestBidPlayer], suits, ranks, deck["priority"])
-                continue
-            
+                return None, False
+            elif (selectedCard == "play trump" and showTrumpBool is False):
+                if index["currentPlayerToPlay"] == highestBidPlayer:
+                    if currentGame["trumpRevealed"]:
+                        print("The trump card is revealed already")
+                        continue
+
+                    bool = helpers.checkForSuitAndRank(players[index["currentPlayerToPlay"]], currentSuit, suits=suits, ranks=ranks, rankNeeded=False)
+                    if (bool is False):
+                        print(f"Trump has been revealed and played by {players[index["currentPlayerToPlay"]]["name"]}")
+                        trumpRevealed()
+                        return (currentGame["trumpSuite"], currentGame["trumpRank"]), True
+                    elif(bool is None):
+                        # Using the try else (for else)
+                        for suit in suits:
+                            if suit != currentGame["trumpSuite"]:
+                                bool2 = helpers.checkForSuitAndRank(players[index["currentPlayerToPlay"]], suit, suits=suits, ranks=ranks, rankNeeded=False)
+                                if bool2 == True:
+                                    print("You still have other suits, you cannot start with the trump")
+                                    break
+                        else:
+                            print(f"Trump has been revealed and played by {players[index["currentPlayerToPlay"]]["name"]}")
+                            trumpRevealed()
+                            return (currentGame["trumpSuite"], currentGame["trumpRank"]), True
+                        
+                        continue # Catches the for's break and continues the outer loop.
+                    else:
+                        print(f"Play a card of the suit {currentSuit}")
+                        continue
+                else:
+                    print("Only the player that selected the trump can use this command")
+                    continue
+            elif (selectedCard == "show trump" and showTrumpBool is False):
+                if index["currentPlayerToPlay"] == highestBidPlayer:
+                    print("Player who kept the trump has to use play trump not show trump")
+                    continue
+                else:
+                    if currentGame["trumpRevealed"]:
+                        print("The trump card is already revealed")
+                        continue
+                    bool = helpers.checkForSuitAndRank(players[index["currentPlayerToPlay"]], currentSuit, suits=suits, ranks=ranks, rankNeeded=False)
+                    if (bool is False):
+                        print("Trump revealed!")
+                        trumpRevealed()
+                        showTrumpBool = True
+                        continue
+                    elif (bool is None):
+                        print("You can't show trump when you are the starting player")
+                        continue
+                    else:
+                        print(f"Play a card of the suit {currentSuit}")
+                        continue
+
             # Sorting things like Heart 10, to 10 Heart
             tempValueHolder = helpers.sortSuitandRank(selectedCard, suits=suits, ranks=ranks, rankNeeded=True)
 
             if tempValueHolder:
                 suit, rank = tempValueHolder
-                return suit, rank
+                if (showTrumpBool is True and
+                    helpers.checkForSuitAndRank(players[index["currentPlayerToPlay"]], currentGame["trumpSuite"], suits=suits, ranks=ranks, rankNeeded=False)):
+                    
+                    if suit == currentGame["trumpSuite"]:
+                        return (suit, rank), True
+                    else:
+                        print("You have to play a the suit of the trump card after it is revealed")
+                        continue
+                else:
+                    return (suit, rank), True
             else:
-                print("Invalid card format (It should be suit rank, or rank suit, like J heart, hEaRT j , case insensitive or type in Show Trump)")    ###
+                print("Invalid card format (It should be suit rank, or rank suit, like J heart, hEaRT j , "
+                      "case insensitive or type in Show Trump or Play Trump if you are the one that selected the trump)")
 
     temp = helpers.sortSuitandRank(trump, suits=suits, ranks=ranks, rankNeeded=True)
+    # Keeping all the variables that aren't needed to be set to a default value per round of the game in dict currentGame,
+    # exception is firstSuit due to it being needed to be manipulated in getPlayerMove()
     currentGame = {
         # Holder team will be evaluated on the fly
         "roundHolderPlayer": globalValues["currentBidStarter"],
@@ -237,7 +300,8 @@ def handleRound(players, highestBid, highestBidPlayer, trump):
         "starterTeamPoints": 0,
         "trumpSuite": temp[0],
         "trumpRank": temp[1],
-        "trumpRevealed": False
+        "trumpRevealed": False,
+        "firstSuit": None
     }
     for _ in range(globalValues["noOfCards"]):
         index = {
@@ -246,18 +310,23 @@ def handleRound(players, highestBid, highestBidPlayer, trump):
         }
         currentHighestRank = None
         currentHighestTrumpRank = None
-        firstSuit = True
+        currentGame["firstSuit"] = True
+        currentSuit = None
         points = 0
         # i is important as players that is starting the round can be anyone
         print("NEW ROUND \n \n")
         for i in range(len(players)):
             index["currentPlayerToPlay"] = (index["roundStarter"] + i) % globalValues["noOfPlayers"]
             while True:
-                temp = getPlayerMove()
-                if temp:
-                    suit, rank = temp
+                temp, bool = getPlayerMove(currentSuit)
+                if bool is True:
+                    if isinstance(temp, tuple):
+                        suit, rank = temp
+                    else:
+                        print("How did we get here?")
+                        return
                 else:
-                    continue
+                    return
 
                 selectedCard = rank + ' ' + suit
 
@@ -266,19 +335,23 @@ def handleRound(players, highestBid, highestBidPlayer, trump):
                     print("You do not have this card")
                     continue
 
-                if (suit == currentGame["trumpSuite"] and currentGame["trumpRevealed"] is False and index["currentPlayerToPlay"] == highestBidPlayer):
-                    print("The person who has selected the trump cannot start with it until its revealed")
-                    continue
-                
-                if (firstSuit):
-                    currentSuit = suit
-                    firstSuit = False
-
                 if(suit != currentSuit and helpers.checkForSuitAndRank(players[index["currentPlayerToPlay"]], currentSuit, suits=suits, ranks=ranks, rankNeeded=False)):
                     print(f"Play a card of the suit {currentSuit}")
                 else:
+                    if (currentGame["firstSuit"] is True and suit == currentGame["trumpSuite"]
+                        and currentGame["trumpRevealed"] is False and index["currentPlayerToPlay"] == highestBidPlayer):
+
+                        print("The person who has selected the trump cannot start with it until its revealed")
+                        continue
+                    if (currentGame["firstSuit"]):
+                        currentSuit = suit
+                        currentGame["firstSuit"] = False
+
+                    # Block trump prowess when players don't know what the trump is and they didn't start the round
+                    if (suit == currentGame["trumpSuite"] and currentGame["trumpRevealed"] is False):
+                        pass
                     #if currentSuit is not trump and suit == trump: -> If a player doesn't have trump, obviously their current card can't be trump
-                    if suit == currentGame["trumpSuite"] and deck["priority"][rank] > deck["priority"].get(currentHighestTrumpRank, -1):
+                    elif (suit == currentGame["trumpSuite"] and deck["priority"][rank] > deck["priority"].get(currentHighestTrumpRank, -1)):
                         currentGame["roundHolderPlayer"] = index["currentPlayerToPlay"]
                         currentHighestTrumpRank = rank
                     # Get is used for avoiding error on the first run
@@ -294,10 +367,10 @@ def handleRound(players, highestBid, highestBidPlayer, trump):
                     
             print(f"Player having the round {players[currentGame["roundHolderPlayer"]]["name"]}")
 
-        print(f"Team that bid's points {currentGame["starterTeamPoints"]}")
         if (helpers.playerToTeam(currentGame["roundHolderPlayer"]) == globalValues["teamToBidStarter"]):
             currentGame["starterTeamPoints"] += points
             print(f"Points successfully collected by team {globalValues["teamToBidStarter"]}")
+        print(f"Team that bid's points {currentGame["starterTeamPoints"]}")
 
 def main():
     helpers.makeCardTemplate(currentDeck, ranks, suits)
@@ -317,7 +390,7 @@ main()
 # implement winning and loosing, implement overall winning and loosing using files
 # many scenerios, u can be playing, and as the person who kept trump, u now have to play that trump
 # You can be the player who kept the trump and now start with it if you got no other cards
-# Trump should be removed from the player but that will mess with the loops
-# If a person asks for trump, the main guy gets it back
+# sorting sometimes doesnt work well
+""" 
 """
-"""
+
